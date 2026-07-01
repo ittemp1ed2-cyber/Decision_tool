@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pipe Quality Issue Diagnosis Tool | Mat Extruder Department</title>
+<style>
+  :root{
+    --deep-purple:#4B0082;
+    --accent:#7B2FBE;
+    --lavender:#EDE7F6;
+    --ink:#231633;
+    --grey:#6b6478;
+    --line:#D1C4E9;
+    --good:#2e7d32;
+    --bad:#a13a2f;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Helvetica Neue',Arial,sans-serif;
+    background:#f7f4fb;
+    color:var(--ink);
+    padding:32px 16px;
+  }
+  #app{
+    max-width:760px;
+    margin:0 auto;
+  }
+  header{
+    text-align:center;
+    margin-bottom:28px;
+  }
+  header .eyebrow{
+    text-transform:uppercase;
+    letter-spacing:0.14em;
+    font-size:12px;
+    font-weight:700;
+    color:var(--accent);
+  }
+  header h1{
+    font-size:26px;
+    color:var(--deep-purple);
+    margin:6px 0 4px 0;
+  }
+  header p{
+    color:var(--grey);
+    font-size:14px;
+    margin:0;
+  }
+  .card{
+    background:#fff;
+    border-radius:10px;
+    border:1px solid var(--line);
+    box-shadow:0 4px 18px rgba(75,0,130,0.06);
+    padding:32px;
+  }
+  .step-label{
+    font-size:12px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.1em;
+    color:var(--accent);
+    margin-bottom:10px;
+  }
+  .question{
+    font-size:19px;
+    font-weight:700;
+    color:var(--ink);
+    margin-bottom:22px;
+    line-height:1.4;
+  }
+  .options{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .opt-btn{
+    text-align:left;
+    background:var(--lavender);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:16px 18px;
+    font-size:15px;
+    color:var(--ink);
+    cursor:pointer;
+    transition:background .15s ease, transform .1s ease;
+  }
+  .opt-btn:hover{
+    background:#e3d6f5;
+    transform:translateY(-1px);
+  }
+  .trail{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-bottom:20px;
+  }
+  .trail span{
+    font-size:11px;
+    background:var(--lavender);
+    color:var(--deep-purple);
+    padding:4px 10px;
+    border-radius:20px;
+    font-weight:600;
+  }
+  .result .rec-box{
+    background:var(--deep-purple);
+    color:#fff;
+    border-radius:8px;
+    padding:20px 22px;
+    font-size:16px;
+    font-weight:600;
+    line-height:1.55;
+    margin-bottom:18px;
+  }
+  .result .rec-box .label{
+    display:block;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    color:#E3D6F5;
+    font-weight:800;
+    margin-bottom:8px;
+  }
+  .reasoning{
+    background:var(--lavender);
+    border-radius:8px;
+    padding:16px 18px;
+    font-size:14px;
+    line-height:1.6;
+    margin-bottom:18px;
+  }
+  .reasoning b{ color:var(--deep-purple); }
+  .escalation{
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:14px 18px;
+    font-size:13px;
+    color:var(--grey);
+    margin-bottom:22px;
+  }
+  .escalation b{ color:var(--ink); }
+  .ir-tag{
+    display:inline-block;
+    background:#fff;
+    border:1px solid var(--accent);
+    color:var(--accent);
+    font-size:12px;
+    font-weight:700;
+    padding:3px 10px;
+    border-radius:20px;
+    margin-right:6px;
+  }
+  .restart-btn{
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    padding:12px 20px;
+    border-radius:8px;
+    font-size:14px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .restart-btn:hover{ background:var(--deep-purple); }
+  .back-btn{
+    background:none;
+    border:none;
+    color:var(--grey);
+    font-size:13px;
+    cursor:pointer;
+    margin-bottom:16px;
+    padding:0;
+    text-decoration:underline;
+  }
+  footer{
+    text-align:center;
+    font-size:11px;
+    color:var(--grey);
+    margin-top:22px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="eyebrow">Mat Extruder Department | Rumbu Main Mat Factory</div>
+    <h1>Pipe Quality Issue Diagnosis Tool</h1>
+    <p>Answer a few questions about what you are seeing at the pipe output. The tool will walk you through the likely cause and what to do next.</p>
+  </header>
+  <div class="card" id="card"></div>
+  <footer>Built from Mat Extruder Department field data | Source of process information: Extruder Manual, Extruder Training Manual, Field Observation, Week 24 &amp; Week 26 production reports</footer>
+</div>
+
+<script>
+const IR = {
+  "IR-01":"Power Interruption","IR-02":"Shortage of Staff (Absenteeism)","IR-03":"Shortage of Water Supply",
+  "IR-06":"Material Quality Issue","IR-08":"Screw Problem","IR-09":"Die Head Element Problem",
+  "IR-11":"Pre-Heating","IR-14":"Nozzle Problem","IR-16":"Wrong Mixing Ratio","IR-17":"Pipe Out of Specification"
+};
+
+function irTag(code){ return `<span class="ir-tag">${code} &middot; ${IR[code]}</span>`; }
+
+// Decision tree definition
+const tree = {
+  start: {
+    question: "What are you observing at the pipe output?",
+    options: [
+      {label:"Pipe diameter or wall thickness looks below spec (tiny pipes)", next:"tiny_nozzle"},
+      {label:"Lumps or specks visible on the pipe surface", next:"lumps_colour"},
+      {label:"Pipe is breaking or snapping during extrusion", next:"break_ratio"},
+      {label:"Colour is inconsistent or off from the expected shade", next:"colour_grade"},
+      {label:"Output is well below target, but the pipe itself looks fine", next:"output_cause"}
+    ]
+  },
+  tiny_nozzle: {
+    question: "Is the nozzle visibly blocked or partially restricted?",
+    options: [
+      {label:"Yes, visible restriction", result:"tiny_nozzle_yes"},
+      {label:"No, nozzle looks clear", next:"tiny_temp"}
+    ]
+  },
+  tiny_temp: {
+    question: "Check barrel Zone 1 to 3 temperature. Is it reading below 240\u00b0C?",
+    options: [
+      {label:"Yes, below 240\u00b0C", result:"tiny_temp_low"},
+      {label:"No, within 240\u2013290\u00b0C range", next:"tiny_screw"}
+    ]
+  },
+  tiny_screw: {
+    question: "Has barrel screw refilling been logged as overdue for this machine?",
+    options: [
+      {label:"Yes, refilling is overdue", result:"tiny_screw_overdue"},
+      {label:"No, refilling is current", result:"tiny_diehead"}
+    ]
+  },
+  lumps_colour: {
+    question: "Do the lumps appear black, or do they match the pipe's base colour?",
+    options: [
+      {label:"Lumps are black", result:"lumps_black"},
+      {label:"Lumps match the base colour", result:"lumps_base"}
+    ]
+  },
+  break_ratio: {
+    question: "Was the mixing ratio verified against the SOP before this shift started?",
+    options: [
+      {label:"No, not verified this shift", result:"break_unverified"},
+      {label:"Yes, verified and correct", result:"break_verified"}
+    ]
+  },
+  colour_grade: {
+    question: "Has the masterbatch grade and batch been confirmed against the production order?",
+    options: [
+      {label:"No, not confirmed", result:"colour_unconfirmed"},
+      {label:"Yes, confirmed correct", result:"colour_confirmed"}
+    ]
+  },
+  output_cause: {
+    question: "Has there been a recent interruption on this line?",
+    options: [
+      {label:"Power interruption", result:"out_power"},
+      {label:"Water supply shortage", result:"out_water"},
+      {label:"Staff shortage / absenteeism", result:"out_staff"},
+      {label:"None of these", next:"output_preheat"}
+    ]
+  },
+  output_preheat: {
+    question: "Was there a pre-heating or start-up delay this shift?",
+    options: [
+      {label:"Yes, start-up was delayed", result:"out_preheat"},
+      {label:"No delay identified", result:"out_unknown"}
+    ]
+  }
+};
+
+const results = {
+  tiny_nozzle_yes: {
+    rec: "Log IR-14 (Nozzle Problem). Clean or replace the nozzle before restarting production.",
+    reasoning: `A partially restricted nozzle limits material flow, which produces undersized pipe. This is the single most common cause of the B-grade "tiny pipes" fault, which was the dominant B-grade defect recorded across the department in the Week 26 production report (4,399.64 kg B grade that week).`,
+    ir: ["IR-14"],
+    escalation: "Shift Leader for this unit &rarr; Unit Manager &rarr; Emmanuel Ezekiel (Unit Head, J105)"
+  },
+  tiny_temp_low: {
+    rec: "Adjust the heater to bring barrel Zone 1 to 3 back into the 240\u2013290\u00b0C range specified in the Extruder Manual Stage One SOP.",
+    reasoning: "Melt temperature below the SOP range reduces material flow through the die, producing undersized pipe even when the nozzle and screw are otherwise fine. Re-check output once temperature stabilises in range before resuming full production.",
+    ir: [],
+    escalation: "Shift Leader for this unit &rarr; Unit Manager"
+  },
+  tiny_screw_overdue: {
+    rec: "Log IR-08 (Screw Problem) and escalate to maintenance for immediate barrel screw refilling.",
+    reasoning: "Overdue barrel screw refilling has been a recurring backlog in this department (flagged for machines MX-91, MX-42, MX-45 and MXJ-23 in the Week 24 report, with zero machines refilled the following week). An overdue refill reduces material throughput and produces undersized pipe.",
+    ir: ["IR-08"],
+    escalation: "Shift Leader for this unit &rarr; Unit Manager &rarr; Emmanuel Ezekiel (Unit Head, J105) &rarr; Maintenance"
+  },
+  tiny_diehead: {
+    rec: "Escalate to the Unit Head for a die head inspection. Log IR-09 (Die Head Element Problem) pending diagnosis.",
+    reasoning: "With the nozzle clear, temperature in range, and screw refilling current, the most likely remaining cause is a die head element issue restricting flow. This requires a hands-on inspection rather than an operator-level fix.",
+    ir: ["IR-09"],
+    escalation: "Shift Leader for this unit &rarr; Unit Manager &rarr; Emmanuel Ezekiel (Unit Head, J105)"
+  },
+  lumps_black: {
+    rec: "Check the Recycled Black mixing ratio (should be 85% Recycled Black, 15% Calcium Carbonate) and masterbatch dosage (0.3kg per 25kg). Log IR-06 if the ratio is correct, or IR-16 if it deviates.",
+    reasoning: "Black lumps most often trace back to either incomplete blending of Recycled Black material or an incorrect Calcium Carbonate ratio. Confirming the ratio first tells you whether this is a material quality issue or a mixing error.",
+    ir: ["IR-06","IR-16"],
+    escalation: "Mixer / Shift Leader for this unit &rarr; Unit Manager"
+  },
+  lumps_base: {
+    rec: "Check the Colour pipe ratio (PP 50%, Recycled Colour 35%, Calcium Carbonate 15%, Masterbatch 0.3kg per 25kg) for incomplete blending, and verify the Calcium Carbonate has not clumped. Log IR-06 (Material Quality Issue).",
+    reasoning: "Lumps matching the base colour usually indicate incomplete blending within the Colour pipe mix, most commonly from Calcium Carbonate clumping before it is fully incorporated.",
+    ir: ["IR-06"],
+    escalation: "Mixer / Shift Leader for this unit &rarr; Unit Manager"
+  },
+  break_unverified: {
+    rec: "Verify the mixing ratio immediately against the Extruder Manual specification (Colour: PP 50% / Recycled Colour 35% / Calcium Carbonate 15%; Black: Recycled Black 85% / Calcium Carbonate 15%). Log IR-16 (Wrong Mixing Ratio) if a deviation is found.",
+    reasoning: "An unverified ratio at shift start is the most common preventable cause of pipe breaking or snapping during extrusion. Checking this first avoids escalating a mechanical fault that may not exist.",
+    ir: ["IR-16"],
+    escalation: "Shift Leader for this unit &rarr; Unit Manager"
+  },
+  break_verified: {
+    rec: "Ratio confirmed correct. Escalate to maintenance for a screw and die head wear inspection.",
+    reasoning: "When the mixing ratio is already correct, pipe breaking during extrusion more often points to mechanical wear (screw or die head) than a material issue. This needs a maintenance inspection rather than a shift-floor fix.",
+    ir: ["IR-08","IR-09"],
+    escalation: "Shift Leader for this unit &rarr; Unit Manager &rarr; Emmanuel Ezekiel (Unit Head, J105) &rarr; Maintenance"
+  },
+  colour_unconfirmed: {
+    rec: "Confirm the correct masterbatch grade and batch against the production order before continuing production.",
+    reasoning: "Using the wrong masterbatch grade (for example SL-1320L Blue RS in place of SL-1391 Orange Filler, or vice versa) is the most common and easiest to fix cause of colour inconsistency. Confirm this before investigating dosing.",
+    ir: [],
+    escalation: "Mixer / Shift Leader for this unit &rarr; Unit Manager"
+  },
+  colour_confirmed: {
+    rec: "Check masterbatch dosing consistency (0.3kg per 25kg). Log IR-06 (Material Quality Issue) if a dosing fault is found.",
+    reasoning: "With the correct grade confirmed, colour inconsistency usually comes down to inconsistent dosing at the mixing stage rather than the material itself.",
+    ir: ["IR-06"],
+    escalation: "Mixer / Shift Leader for this unit &rarr; Unit Manager"
+  },
+  out_power: {
+    rec: "Log IR-01 (Power Interruption) against this shift's production loss.",
+    reasoning: "Power interruption is a directly observable, high-frequency cause of production shortfall in this department and should be logged immediately so the loss is attributed correctly rather than absorbed into unexplained downtime.",
+    ir: ["IR-01"],
+    escalation: "Shift Leader for this unit &rarr; Unit Manager"
+  },
+  out_water: {
+    rec: "Log IR-03 (Shortage of Water Supply) against this shift's production loss.",
+    reasoning: "Water supply shortage directly affects cooling and has previously caused measurable production loss in this department, particularly on the colour side.",
+    ir: ["IR-03"],
+    escalation: "Shift Leader for this unit &rarr; Unit Manager"
+  },
+  out_staff: {
+    rec: "Log IR-02 (Shortage of Staff / Absenteeism) against this shift's production loss.",
+    reasoning: "Staff shortage is a recurring, significant cause of production loss in this department (20 absences recorded in Week 024 alone, split 9 in EXT1 and 11 in EXT2). Logging it consistently is what makes the pattern visible.",
+    ir: ["IR-02"],
+    escalation: "Shift Leader for this unit &rarr; Unit Manager"
+  },
+  out_preheat: {
+    rec: "Log IR-11 (Pre-Heating) against this shift's production loss.",
+    reasoning: "A delayed start-up and heating phase reduces the productive minutes available in the shift and should be logged under the merged Pre-Heating code, which covers the full start-up heating phase.",
+    ir: ["IR-11"],
+    escalation: "Shift Leader for this unit &rarr; Unit Manager"
+  },
+  out_unknown: {
+    rec: "Escalate to the Shift Leader for direct inspection. There may be an unlogged mechanical fault.",
+    reasoning: "None of the common recorded causes (power, water, staffing, pre-heating) explain the shortfall, which means the cause has not yet been captured by the existing paper logs. A direct inspection is needed to identify and log it correctly.",
+    ir: [],
+    escalation: "Shift Leader for this unit &rarr; Unit Manager &rarr; Emmanuel Ezekiel (Unit Head, J105)"
+  }
+};
+
+let history = ["start"];
+
+function render(){
+  const nodeKey = history[history.length-1];
+  const card = document.getElementById("card");
+
+  if (results[nodeKey]) {
+    const r = results[nodeKey];
+    card.innerHTML = `
+      <button class="back-btn" onclick="goBack()">&larr; Back</button>
+      <div class="result">
+        <div class="rec-box"><span class="label">Recommendation</span>${r.rec}</div>
+        <div class="reasoning"><b>Reasoning:</b><br>${r.reasoning}</div>
+        ${r.ir.length ? `<div style="margin-bottom:18px;">${r.ir.map(irTag).join(" ")}</div>` : ""}
+        <div class="escalation"><b>Escalation path:</b> ${r.escalation}</div>
+        <button class="restart-btn" onclick="restart()">Start over</button>
+      </div>
+    `;
+    return;
+  }
+
+  const node = tree[nodeKey];
+  card.innerHTML = `
+    ${history.length > 1 ? `<button class="back-btn" onclick="goBack()">&larr; Back</button>` : ""}
+    <div class="trail">${history.slice(0,-1).map((h,i)=>`<span>Step ${i+1}</span>`).join("")}</div>
+    <div class="question">${node.question}</div>
+    <div class="options">
+      ${node.options.map(o => `<button class="opt-btn" onclick="choose('${o.next || o.result}')">${o.label}</button>`).join("")}
+    </div>
+  `;
+}
+
+function choose(key){
+  history.push(key);
+  render();
+}
+function goBack(){
+  if (history.length > 1) history.pop();
+  render();
+}
+function restart(){
+  history = ["start"];
+  render();
+}
+
+render();
+</script>
+</body>
+</html>
